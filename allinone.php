@@ -5,7 +5,8 @@ use Symfony\Component\Yaml\Yaml;
 require_once 'vendor/autoload.php'; // Adjust the path as necessary
 
 // Functions from clean.php
-function isBot($userAgent, $botPatterns) {
+function isBot($userAgent, $botPatterns)
+{
     foreach ($botPatterns as $botPattern) {
         if (!is_string($botPattern)) {
             continue;
@@ -19,13 +20,20 @@ function isBot($userAgent, $botPatterns) {
 }
 
 // Function to parse and count video hits
-function parseAndCountVideos($logFile, $botsFile) {
+function parseAndCountVideos($logFile, $botsFile)
+{
     $botsData = Yaml::parseFile($botsFile);
-    $botPatterns = array_map(function($entry) {
-        return implode('|', array_map(function($part) {
-            return preg_quote($part, '/');
-        }, explode('|', $entry['regex'])));
-    }, $botsData);
+    $botPatterns = array_map(
+        function ($entry) {
+            return implode(
+                '|', array_map(
+                    function ($part) {
+                        return preg_quote($part, '/');
+                    }, explode('|', $entry['regex'])
+                )
+            );
+        }, $botsData
+    );
 
     $videoHits = [];
     $videoIdRegex = '/[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}/';
@@ -70,7 +78,8 @@ function parseAndCountVideos($logFile, $botsFile) {
 }
 
 // Function to display results in a fancy table
-function displayAsTable($videoHits) {
+function displayAsTable($videoHits)
+{
     $mask = "| %-40s | %8s |\n";
     printf($mask, 'Video ID', 'Hits');
     echo str_repeat('-', 55) . "\n";

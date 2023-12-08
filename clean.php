@@ -4,16 +4,19 @@ use Symfony\Component\Yaml\Yaml;
 
 require_once 'vendor/autoload.php'; // Adjust the path as necessary
 
-function isBot($userAgent, $botPatterns) {
+function isBot($userAgent, $botPatterns)
+{
     foreach ($botPatterns as $botPattern) {
         if (!is_array($botPattern) || !isset($botPattern['regex']) || !isset($botPattern['name'])) {
             continue;
         }
 
         $splitPattern = explode('|', $botPattern['regex']);
-        $escapedPatternParts = array_map(function($part) {
-            return preg_quote($part, '/');
-        }, $splitPattern);
+        $escapedPatternParts = array_map(
+            function ($part) {
+                return preg_quote($part, '/');
+            }, $splitPattern
+        );
 
         $escapedPattern = implode('|', $escapedPatternParts);
 
@@ -24,14 +27,17 @@ function isBot($userAgent, $botPatterns) {
     return false;
 }
 
-function parseLogFile($logFile, $botsFile) {
+function parseLogFile($logFile, $botsFile)
+{
     $botsData = Yaml::parseFile($botsFile);
-    $botPatterns = array_map(function($entry) {
-        return [
+    $botPatterns = array_map(
+        function ($entry) {
+            return [
             'regex' => $entry['regex'],
             'name' => $entry['name'] ?? 'Unknown Bot' // Default name if not provided
-        ];
-    }, $botsData);
+            ];
+        }, $botsData
+    );
 
     $linesRemoved = 0;
     $botLinesRemoved = 0;
