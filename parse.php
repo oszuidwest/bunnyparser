@@ -1,13 +1,22 @@
 <?php
 
-require_once 'vendor/autoload.php';
 use Symfony\Component\Yaml\Yaml;
 
-// Function to check if the user-agent is a bot
+require_once 'vendor/autoload.php'; // Adjust the path as necessary
+
 function isBot($userAgent, $botPatterns) {
-    foreach ($botPatterns as $pattern) {
-        // Escape special characters in the regex pattern
-        $escapedPattern = preg_quote($pattern, '/');
+    foreach ($botPatterns as $botPattern) {
+        if (!is_array($botPattern) || !isset($botPattern['regex'])) {
+            continue;
+        }
+
+        $splitPattern = explode('|', $botPattern['regex']);
+        $escapedPatternParts = array_map(function($part) {
+            return preg_quote($part, '/');
+        }, $splitPattern);
+
+        $escapedPattern = implode('|', $escapedPatternParts);
+
         if (preg_match("/$escapedPattern/i", $userAgent)) {
             return true;
         }
@@ -15,74 +24,60 @@ function isBot($userAgent, $botPatterns) {
     return false;
 }
 
-// Path to the bots.yml file
-$botsFile = 'bots.yml';
-
-// Parsing the bots.yml file to get bot patterns
-try {
+function parseLogFile($logFile, $botsFile) {
     $botsData = Yaml::parseFile($botsFile);
-    $botPatterns = array_column($botsData, 'regex');
-} catch (Exception $e) {
-    echo "Error parsing bots.yml: " . $e->getMessage();
-    $botPatterns = [];
-}
+    $botPatterns = array_map(function($entry) {
+        return ['regex' => $entry['regex']];
+    }, $botsData);
 
-// Path to your log file
-$logFile = 'example.log';
+    $linesRemoved = 0;
+    $botLinesRemoved = 0;
 
-// Creating the name for the output file
-$outputFile = pathinfo($logFile, PATHINFO_FILENAME) . '_filtered.' . pathinfo($logFile, PATHINFO_EXTENSION);
+    $inputHandle = fopen($logFile, 'r');
+    $outputHandle = fopen($logFile . '_filtered', 'w');
 
-// Counters for lines removed
-$totalLinesRemoved = 0;
-$botLinesRemoved = 0;
+    if ($inputHandle) {
+        while (($line = fgets($inputHandle)) !== false) {
+            $parts = explode('|', $line);
+            $url = $parts[7] ?? '';
+            $userAgent = $parts[9] ?? '';
 
-// Open the logfile
-$handle = fopen($logFile, 'r');
-if ($handle) {
-    // Open the output file for writing
-    $outputHandle = fopen($outputFile, 'w');
-    if (!$outputHandle) {
-        echo "Error opening the output file.";
-        exit;
-    }
-
-    while (($line = fgets($handle)) !== false) {
-        // Split the line into parts
-        $parts = explode('|', $line);
-
-        // Check if the line has the correct format
-        if (count($parts) < 11) continue;
-
-        // Extract relevant parts
-        $url = $parts[7];
-        $userAgent = $parts[9];
-
-        // Check for .m3u8 or .mp4 and not video.m3u8
-        if ((preg_match('/\.m3u8$/', $url) && !preg_match('/video\.m3u8$/', $url)) || preg_match('/\.mp4$/', $url)) {
-            // Check if the user-agent is not a bot
-            if (!isBot($userAgent, $botPatterns)) {
-                // Write the line to the output file if it's not a bot request
-                fwrite($outputHandle, $line);
+            if (preg_match('/\.m3u8$/', $url) || preg_match('/\.mp4$/', $url)) {
+                if (!preg_match('/video\.m3u8$/', $url)) {
+                    if (!isBot($userAgent, $botPatterns)) {
+                        fwrite($outputHandle, $line);
+                    } else {
+                        $botLinesRemoved++;
+                    }
+                } else {
+                    $linesRemoved++;
+                }
             } else {
-                // Increment bot line removal counter
-                $botLinesRemoved++;
+                $linesRemoved++;
             }
-        } else {
-            // Increment total line removal counter
-            $totalLinesRemoved++;
         }
+
+        fclose($inputHandle);
+        fclose($outputHandle);
+
+        return [
+            'totalRemoved' => $linesRemoved,
+            'botRemoved' => $botLinesRemoved
+        ];
+    } else {
+        return false;
     }
-
-    fclose($handle);
-    fclose($outputHandle);
-
-    // Output the count of lines removed
-    echo "Total lines removed: " . $totalLinesRemoved . "\n";
-    echo "Lines removed due to bot detection: " . $botLinesRemoved . "\n";
-} else {
-    // Error opening the file
-    echo "Error opening the log file.";
 }
 
+// Usage
+$logFile = 'example.log'; // Replace with the path to your log file
+$botsFile = 'bots.yml'; // Replace with the path to your bots.yml file
+$result = parseLogFile($logFile, $botsFile);
+
+if ($result !== false) {
+    echo "Total Lines Removed: " . $result['totalRemoved'] . "\n";
+    echo "Lines Removed due to Bot Detection: " . $result['botRemoved'] . "\n";
+} else {
+    echo "Error opening the file.\n";
+}
 ?>
