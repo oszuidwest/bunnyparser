@@ -69,15 +69,24 @@ function parseAndCountVideos($logFile, $botsFile) {
     }
 }
 
+// Function to display results in a fancy table
+function displayAsTable($videoHits) {
+    $mask = "| %-40s | %8s |\n";
+    printf($mask, 'Video ID', 'Hits');
+    echo str_repeat('-', 55) . "\n";
+
+    foreach ($videoHits as $videoId => $hits) {
+        printf($mask, $videoId, $hits);
+    }
+}
+
 // Usage
 $logFile = 'example.log';
 $botsFile = 'bots.yml';
 $videoHits = parseAndCountVideos($logFile, $botsFile);
 
 if ($videoHits !== false) {
-    foreach ($videoHits as $videoId => $hits) {
-        echo "Video ID: $videoId - Hits: $hits\n";
-    }
+    displayAsTable($videoHits);
 } else {
     echo "Error opening the file.\n";
 }
