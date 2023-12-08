@@ -6,7 +6,7 @@ require_once 'vendor/autoload.php'; // Adjust the path as necessary
 
 function isBot($userAgent, $botPatterns) {
     foreach ($botPatterns as $botPattern) {
-        if (!is_array($botPattern) || !isset($botPattern['regex'])) {
+        if (!is_array($botPattern) || !isset($botPattern['regex']) || !isset($botPattern['name'])) {
             continue;
         }
 
@@ -18,7 +18,7 @@ function isBot($userAgent, $botPatterns) {
         $escapedPattern = implode('|', $escapedPatternParts);
 
         if (preg_match("/$escapedPattern/i", $userAgent)) {
-            return true;
+            return $botPattern['name']; // Return the bot's name
         }
     }
     return false;
@@ -27,11 +27,15 @@ function isBot($userAgent, $botPatterns) {
 function parseLogFile($logFile, $botsFile) {
     $botsData = Yaml::parseFile($botsFile);
     $botPatterns = array_map(function($entry) {
-        return ['regex' => $entry['regex']];
+        return [
+            'regex' => $entry['regex'],
+            'name' => $entry['name'] ?? 'Unknown Bot' // Default name if not provided
+        ];
     }, $botsData);
 
     $linesRemoved = 0;
     $botLinesRemoved = 0;
+    $removedBots = [];
 
     $inputHandle = fopen($logFile, 'r');
     $outputHandle = fopen($logFile . '_filtered', 'w');
@@ -44,10 +48,12 @@ function parseLogFile($logFile, $botsFile) {
 
             if (preg_match('/\.m3u8$/', $url) || preg_match('/\.mp4$/', $url)) {
                 if (!preg_match('/video\.m3u8$/', $url)) {
-                    if (!isBot($userAgent, $botPatterns)) {
+                    $botName = isBot($userAgent, $botPatterns);
+                    if (!$botName) {
                         fwrite($outputHandle, $line);
                     } else {
                         $botLinesRemoved++;
+                        $removedBots[] = $botName;
                     }
                 } else {
                     $linesRemoved++;
@@ -62,7 +68,8 @@ function parseLogFile($logFile, $botsFile) {
 
         return [
             'totalRemoved' => $linesRemoved,
-            'botRemoved' => $botLinesRemoved
+            'botRemoved' => $botLinesRemoved,
+            'removedBots' => array_unique($removedBots)
         ];
     } else {
         return false;
@@ -77,6 +84,7 @@ $result = parseLogFile($logFile, $botsFile);
 if ($result !== false) {
     echo "Total Lines Removed: " . $result['totalRemoved'] . "\n";
     echo "Lines Removed due to Bot Detection: " . $result['botRemoved'] . "\n";
+    echo "Bots Detected: " . implode(', ', $result['removedBots']) . "\n";
 } else {
     echo "Error opening the file.\n";
 }
