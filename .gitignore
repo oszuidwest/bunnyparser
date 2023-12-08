@@ -1,2 +1,4 @@
-example
-filtered_example.log
+example.log
+example_filtered.log
+.DS_Store
+vendor
