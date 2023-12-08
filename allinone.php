@@ -7,18 +7,11 @@ require_once 'vendor/autoload.php'; // Adjust the path as necessary
 // Functions from clean.php
 function isBot($userAgent, $botPatterns) {
     foreach ($botPatterns as $botPattern) {
-        if (!is_array($botPattern) || !isset($botPattern['regex']) || !isset($botPattern['name'])) {
+        if (!is_string($botPattern)) {
             continue;
         }
 
-        $splitPattern = explode('|', $botPattern['regex']);
-        $escapedPatternParts = array_map(function($part) {
-            return preg_quote($part, '/');
-        }, $splitPattern);
-
-        $escapedPattern = implode('|', $escapedPatternParts);
-
-        if (preg_match("/$escapedPattern/i", $userAgent)) {
+        if (preg_match("/$botPattern/i", $userAgent)) {
             return true; // Return true if it's a bot
         }
     }
@@ -29,12 +22,9 @@ function isBot($userAgent, $botPatterns) {
 function parseAndCountVideos($logFile, $botsFile) {
     $botsData = Yaml::parseFile($botsFile);
     $botPatterns = array_map(function($entry) {
-        return [
-            'regex' => implode('|', array_map(function($part) {
-                return preg_quote($part, '/');
-            }, explode('|', $entry['regex']))),
-            'name' => $entry['name'] ?? 'Unknown Bot'
-        ];
+        return implode('|', array_map(function($part) {
+            return preg_quote($part, '/');
+        }, explode('|', $entry['regex'])));
     }, $botsData);
 
     $videoHits = [];
@@ -53,7 +43,7 @@ function parseAndCountVideos($logFile, $botsFile) {
 
             $isBot = false;
             foreach ($botPatterns as $botPattern) {
-                if (preg_match("/{$botPattern['regex']}/i", $userAgent)) {
+                if (preg_match("/$botPattern/i", $userAgent)) {
                     $isBot = true;
                     break;
                 }
