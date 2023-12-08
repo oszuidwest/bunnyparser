@@ -30,13 +30,18 @@ function parseAndCountVideos($logFile, $botsFile) {
     $botsData = Yaml::parseFile($botsFile);
     $botPatterns = array_map(function($entry) {
         return [
-            'regex' => $entry['regex'],
-            'name' => $entry['name'] ?? 'Unknown Bot' // Default name if not provided
+            'regex' => implode('|', array_map(function($part) {
+                return preg_quote($part, '/');
+            }, explode('|', $entry['regex']))),
+            'name' => $entry['name'] ?? 'Unknown Bot'
         ];
     }, $botsData);
 
     $videoHits = [];
     $videoIdRegex = '/[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}/';
+    $m3u8Regex = '/\.m3u8$/';
+    $mp4Regex = '/\.mp4$/';
+    $videoM3u8Regex = '/video\.m3u8$/';
 
     $inputHandle = fopen($logFile, 'r');
 
@@ -46,22 +51,26 @@ function parseAndCountVideos($logFile, $botsFile) {
             $userAgent = $parts[9] ?? '';
             $url = $parts[7] ?? '';
 
-            if (!isBot($userAgent, $botPatterns) && (preg_match('/\.m3u8$/', $url) || preg_match('/\.mp4$/', $url))) {
-                if (!preg_match('/video\.m3u8$/', $url)) {
-                    if (preg_match($videoIdRegex, $url, $matches)) {
-                        $videoId = $matches[0];
-                        if (!isset($videoHits[$videoId])) {
-                            $videoHits[$videoId] = 0;
-                        }
-                        $videoHits[$videoId]++;
+            $isBot = false;
+            foreach ($botPatterns as $botPattern) {
+                if (preg_match("/{$botPattern['regex']}/i", $userAgent)) {
+                    $isBot = true;
+                    break;
+                }
+            }
+
+            if (!$isBot && (preg_match($m3u8Regex, $url) || preg_match($mp4Regex, $url)) && !preg_match($videoM3u8Regex, $url)) {
+                if (preg_match($videoIdRegex, $url, $matches)) {
+                    $videoId = $matches[0];
+                    if (!isset($videoHits[$videoId])) {
+                        $videoHits[$videoId] = 0;
                     }
+                    $videoHits[$videoId]++;
                 }
             }
         }
 
         fclose($inputHandle);
-
-        // Sort the video hits in descending order
         arsort($videoHits);
 
         return $videoHits;
@@ -71,8 +80,8 @@ function parseAndCountVideos($logFile, $botsFile) {
 }
 
 // Usage
-$logFile = 'example.log'; // Replace with the path to your log file
-$botsFile = 'bots.yml'; // Replace with the path to your bots.yml file
+$logFile = 'example.log';
+$botsFile = 'bots.yml';
 $videoHits = parseAndCountVideos($logFile, $botsFile);
 
 if ($videoHits !== false) {
